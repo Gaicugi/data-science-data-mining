@@ -1,0 +1,96 @@
+# Importing libraries
+import pandas as pd
+import csv
+import re
+import numpy as np
+import plotly.express as px
+from plotly.offline import init_notebook_mode
+
+from textblob import TextBlob
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
+# read twitter data
+# Read in the data and put it into a dataframe
+df = pd.read_csv("labelled_data_cleaned.csv")
+
+# Have a quick look at the dataframe
+df
+# Using textblob
+
+Create a function to get the subjectivity
+def getSubjectivity(text):
+    return TextBlob(text).sentiment.subjectivity
+
+#Create a function to get the polarity
+def getPola#rity(text):
+    return TextBlob(text).sentiment.polarity
+ your_text = 'this is so cool'
+getPolarity(your_text), getSubjectivity(your_text)
+df['subjectivity'] = df['tweet_text'].apply(getSubjectivity)
+df['polarity'] = df['tweet_text'].apply(getPolarity)
+
+df
+# Create a function to label postitive, neutral and negative tweets
+
+def get_sentiment_label(score):
+    if score < 0:
+        return 'Negative'
+    elif score == 0:
+        return 'Neutral'
+    else:
+        return 'Positive'
+# Apply the get_sentiment_label function to the polarity column
+# and add the sentiment results as a new column in our dataframe
+
+df['TBsentiment'] = df['polarity'].apply(get_sentiment_label)
+df
+df['TBsentiment'].value_counts()
+#We sort the tweets by their polarity value and put the sorted tweets into a new dataframe 
+
+sorted_df = df.sort_values(by=['polarity'], ascending=False)
+#Print out the text from the first 15 tweets in the sorted dataframe
+
+for i, tweet in enumerate(sorted_df.head(15)['tweet_text']):
+    print(i+1, tweet, '\n')
+    
+ #Print out the text from the last 15 tweets in the sorted dataframe
+
+for i, tweet in enumerate(sorted_df.tail(15)['tweet_text']):
+    print(i+1, tweet, '\n')
+ init_notebook_mode(connected=True)
+ fig = px.scatter(df, x="polarity", y="subjectivity", hover_data=['tweet_text'],
+                 title="TextBlob Sentiment Analysis")
+
+fig.show()
+
+# using Vader
+analyser = SentimentIntensityAnalyzer()
+your_text = 'wow this is so cool'
+analyser.polarity_scores(your_text)
+#Create a function to get the polarity
+
+def get_vaderCompoundPolarity(text):
+    return analyser.polarity_scores(text)['compound']
+    
+df['vader_compound'] = df['tweet_text'].apply(get_vaderCompoundPolarity)
+df
+
+# Apply the get_sentiment_label function to the VADER compound score
+# and add the VADER sentiment results as a new column in our dataframe
+
+df['VADERsentiment'] = df['vader_compound'].apply(get_sentiment_label)
+df
+#We sort the tweets by their vader_compound value and put the sorted tweets into a new dataframe 
+
+sorted_df2 = df.sort_values(by=['vader_compound'], ascending=False)
+#Print out the text from the first 15 tweets in the sorted dataframe
+
+for i, tweet in enumerate(sorted_df2.head(15)['tweet_text']):
+    print(i+1, tweet, '\n')
+   #Print out the text from the last 15 tweets in the sorted dataframe
+
+for i, tweet in enumerate(sorted_df2.tail(15)['tweet_text']):
+    print(i+1, tweet, '\n')
+fig = px.scatter(df, x="polarity", y="vader_compound", hover_data=['tweet_text'],
+                 title="TextBlob vs VADER")
+fig.show()
