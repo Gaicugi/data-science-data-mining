@@ -1,0 +1,234 @@
+import pandas as pd
+import numpy as np
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+
+from sklearn.linear_model import SGDClassifier, LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, classification_report 
+df = pd.read_csv('labelled_data_preprocessed.csv')
+df
+# Display some useful information about the data in the dataframe
+df.info()
+# Drop all rows which contain a NaN, or null value in either column
+df = df.dropna()# Drop all rows which contain a NaN, or null value in either column
+df = df.dropna()
+df.info()
+df['label'].value_counts()
+
+# make it binary classification challenge
+binary_df = df[(df['label']==0) | (df['label']==2) ]
+
+# Change the label for positive sentiment from 2 to 1
+binary_df['label'] = binary_df['label'].replace(2, 1) 
+binary_df['label'].value_counts()
+
+# Sample from the dataframe to create a balanced dataset, i.e. address under/over representation of labels
+pos_samples = binary_df[binary_df['label']==1]
+
+# Randomly sample from the negative tweets to select the same quantity as the number of psotive tweets
+neg_samples = binary_df[binary_df['label']==0].sample(len(pos_samples), random_state=42)
+
+# Put this balanced data into a new dataframe
+balanced_binary_df = pd.concat([pos_samples, neg_samples])
+
+tweets = balanced_binary_df['tweet_text']
+sentiments = balanced_binary_df['label']
+#tweets = binary_df['tweet_text']
+#sentiments = binary_df['label']
+balanced_binary_df['label'].value_counts()
+
+# Randomly splits the data and respective labels (y values) into a train and validation set, the size of the
+# validation set is specified to be 20%
+
+X_train, X_test, y_train, y_test  = train_test_split(tweets, sentiments, test_size=0.2, random_state=42)
+cv = CountVectorizer(analyzer='word', ngram_range=(1,2)) 
+
+# Builds BOW features on tweets in the train set
+# Fit identifies all the unique words in the corpus, while transform counts the occurence of each word 
+cv_train_features = cv.fit_transform(X_train) 
+
+# Obtain the features for the test set
+cv_test_features = cv.transform(X_test)
+
+# Here we instantiate the various models
+
+# Support vector machine model
+svm = SGDClassifier(loss='hinge', l1_ratio=0.15, max_iter=300, n_jobs=4, random_state=101)
+# Decision tree model
+dt = DecisionTreeClassifier(criterion = 'entropy', random_state = 0)
+# Random forest model
+rf = RandomForestClassifier(n_estimators = 10, criterion = 'entropy', random_state = 0)
+# Logistic regression model
+lr = LogisticRegression(max_iter=100, C=1, multi_class='auto', solver='lbfgs')
+# Kernel svm model
+kernel_svm = SVC(kernel = 'rbf', random_state = 0, gamma='scale')
+# K nearest neighbours model
+knn = KNeighborsClassifier(n_neighbors = 5, metric = 'minkowski', p = 2)
+
+# Select which classifier model you want to use
+classifier =  dt
+
+def train_predict_model(classifier,  train_features, train_labels,  test_features, test_labels):
+    
+    # build the model    
+    classifier.fit(train_features, train_labels)
+    # make predictions using model
+    y_pred = classifier.predict(test_features) 
+    
+    return y_pred
+  
+  # Model predictions
+
+y_pred = train_predict_model(classifier=classifier,
+                             train_features=cv_train_features,
+                             train_labels= y_train,
+                             test_features=cv_test_features,
+                             test_labels= y_test)
+                             
+# To calculate these metrics we pass in the actual sentiment labels for tweets in the validation set (y_test),
+# along with the sentiment predictions from our model (y_pred)
+cm = confusion_matrix(y_test, y_pred)
+accuracy = accuracy_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred, average='weighted')
+
+# Print out the results
+print('Confusion Matrix:', '\n')
+print(cm, '\n')
+print('Accuracy = ', accuracy)
+print('F1 Score = ',f1, '\n')
+print(classification_report(y_test, y_pred))  
+
+# making new predictions
+# The text from your new tweets - here we are just using a small subset of the exisiting tweet_text column
+# for demonstration purposes.
+
+new_tweets = df['tweet_text'].iloc[10:30]
+# Extract the features of the twitter text you have collected
+newtext_features = cv.transform(new_tweets)
+# Obtain the model's sentiment predictions for your collected tweets
+new_result = classifier.predict(newtext_features)
+print(new_result)
+
+# Transfer learning approach
+
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+
+from simpletransformers.classification import ClassificationModel
+
+import pandas as pd
+import sklearn
+from sklearn.model_selection import train_test_split
+import random
+import numpy as np
+import torch
+from sklearn.model_selection import KFold
+
+import logging
+from pathlib import Path
+
+df2 = pd.read_csv('labelled_data_cleaned.csv')
+df2
+bi_df = df2[(df2.label==0) | (df2.label==2) ] # make it binary classification
+bi_df.label.replace(2,1, inplace=True) # make it binary classification
+
+pos_samples = bi_df[bi_df['label']==1]
+neg_samples = bi_df[bi_df['label']==0].sample(len(pos_samples), random_state=42)
+
+bal_bi_df = pd.concat([pos_samples, neg_samples])
+
+bi_df['label'].value_counts()
+bal_bi_df['label'].value_counts()
+
+train_df, val_df = train_test_split(bi_df, test_size=0.2,  random_state=42)
+train_df['label'].value_counts()
+val_df['label'].value_counts()
+
+# Using BERT
+
+# Build the model
+
+bert_model = ClassificationModel('bert',
+                            'bert-base-cased',
+                            num_labels=2,
+                            use_cuda=False,
+                            args={'overwrite_output_dir': True})
+%%time
+
+# ___Cell no. 31___
+
+# Train the model 
+bert_model.train_model(train_df=train_df, eval_df=val_df)
+# wrapper functions
+
+def multi_F1(y_true, y_pred, average='macro'):
+    return sklearn.metrics.f1_score(y_true=y_true, y_pred=y_pred, average=average)
+
+def multi_classification_report(y_true, y_pred):
+    return sklearn.metrics.classification_report(y_true=y_true, y_pred=y_pred)
+ %%time
+
+# ___Cell no. 34___
+
+# Calculated and print out the results in the classification report
+
+result, model_outputs, wrong_predictions = bert_model.eval_model(val_df, report=multi_classification_report);
+print('Classification Report: ', result['report'])
+
+# Using Bert for sentiment prediction
+
+# The text from your new tweets - here we are just using a small subset of the exisiting tweet_text column
+# for demonstration purposes.
+
+new_tweets = df['tweet_text'].iloc[10:30].values
+# Obtain the model's sentiment predictions for your collected tweets
+
+new_result = bert_model.predict(new_tweets)
+print(new_result[0])
+
+# using covid-19 twitter BERT
+
+train_df, val_df = train_test_split(bi_df, test_size=0.2,  random_state=42)
+train_df['label'].value_counts()
+val_df['label'].value_counts()
+
+# Build the ct-bert model
+
+ct_model = ClassificationModel('bert',
+                            'digitalepidemiologylab/covid-twitter-bert',
+                            num_labels=2,
+                            use_cuda=False,
+                            args={'overwrite_output_dir': True})
+                           
+%%time
+
+# ___Cell no. 41___
+
+# Train the ct-bert model
+
+ct_model.train_model(train_df=train_df, eval_df=val_df)    
+
+%%time
+
+# ___Cell no. 42___
+
+# Calculated and print out the f1 score
+
+result, model_outputs, wrong_predictions = ct_model.eval_model(val_df, f1=multi_F1);
+print('f1 score = ',result['f1'])
+
+%%time
+
+# ___Cell no. 43___
+
+# Calculated and print out the results in the classification report
+
+result, model_outputs, wrong_predictions = ct_model.eval_model(val_df, report=multi_classification_report);
+print('Classification Report: ', result['report'])
+                           
