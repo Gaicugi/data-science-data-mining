@@ -1,0 +1,149 @@
+import tweepy
+import pandas as pd
+import csv
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+plt.style.use('fivethirtyeight')
+
+from wordcloud import WordCloud
+import nltk 
+from nltk.tokenize.toktok import ToktokTokenizer
+tokenizer = ToktokTokenizer()
+from nltk.corpus import stopwords
+nltk.download("stopwords")
+# We then import the credentials
+import twitter_credentials as tc
+# Create an authentication object of the AuthHandler class by passing in the credentials
+auth = tweepy.OAuthHandler(tc.api_key, tc.api_secret_key)
+
+# Set the access tokens to complete the authentication process
+auth.set_access_token(tc.access_token, tc.access_token_secret)
+api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+# Enter your search words in accordance with the basic filtering rules
+search_words = "coronavirus OR covid OR pandemic OR covid19 OR lockdown"
+
+# We also want to exclude retweets and replies as this may sway results
+my_search = search_words + " -filter:retweets" + " -filter:replies"
+# The Twitter data is stored in a Tweet object which we've called tweets
+tweets = api.search(q=my_search,lang="en",tweet_mode="extended",count=100)
+# Iterate and print tweets
+i = 1
+for tweet in tweets[0:20]:
+    print(str(i) + ') ' + tweet.full_text + '\n')
+    i = i + 1 
+    print(tweets[0])
+    # Our new method of collecting the tweets
+tweets = tweepy.Cursor(api.search,q=my_search,lang="en",tweet_mode='extended').items(1000)
+# Extract the info we need from the tweets object
+tweet_info = [[tweet.id_str,tweet.created_at,tweet.user.location,tweet.full_text] for tweet in tweets]
+# Put our data into a dataframe 
+df = pd.DataFrame(data=tweet_info, columns=['tweet_id_str','date_time','location','tweet_text'])
+
+# Have a quick look at the dataframe
+df
+for i,tweet in enumerate(df['tweet_text'].head(20)):
+    print(i+1, tweet, '\n')
+    
+ # Here we start cleaning the data 
+ # Not necessary if we are going to be using BERT
+ def clean_text(text):
+    
+    """
+    A function to clean the tweet text
+    """
+    #Remove hyper links
+    text = re.sub(r'https?:\/\/\S+', ' ', text)
+    
+    #Remove @mentions
+    text = re.sub(r'@[A-Za-z0-9]+', ' ', text)
+    
+    #Remove anything that isn't a letter, number, or one of the punctuation marks listed
+    text = re.sub(r"[^A-Za-z0-9#'?!,.]+", ' ', text)   
+    
+    return text
+    # Apply the clean_text function to the 'tweet_text' column
+df['tweet_text']=df['tweet_text'].apply(clean_text)
+for i,tweet in enumerate(df['tweet_text'].head(20)):
+    print(i+1, tweet, '\n')
+    df['tweet_text']=df['tweet_text'].str.lower()
+df
+
+# Get the list of NLTK stop words
+
+stopwords = stopwords.words("english")
+# Let's have a quick look at what words nltk considers to be stop words
+stopwords
+
+# Define our own list of stopwords
+my_stopwords = ['coronavirus','covid','pandemic','covid19','lockdown','amp','via']
+
+# Extend the nltk stopwords list
+stopwords.extend(my_stopwords)
+
+def remove_stopwords(text):
+    
+    """
+    A function to remove stop words
+    """
+    
+    # Tokenize the text
+    tokens = tokenizer.tokenize(text)
+    tokens = [token.strip() for token in tokens]
+    
+    # Remove stop words
+    filtered_tokens = [token for token in tokens if token not in stopwords]
+    filtered_text = ' '.join(filtered_tokens)    
+    
+    return filtered_text
+    # Apply the stopword removal function to the text of all tweets
+df['tweet_text']=df['tweet_text'].apply(remove_stopwords)
+
+# Print the first 20 tweets
+for i,tweet in enumerate(df['tweet_text'].head(20)):
+    print(i+1, tweet, '\n')
+    # Plot a word cloud
+
+all_words = ' '.join( [data for data in df['tweet_text']])
+word_cloud = WordCloud(width=500, height=400, random_state=21, max_font_size = 100,
+                       stopwords=stopwords).generate(all_words)
+
+plt.figure(figsize = (20,10))
+plt.imshow(word_cloud, interpolation='bilinear')
+plt.axis('off')
+plt.show()
+
+# REfining proccess
+
+search_words = "coronavirus OR covid OR pandemic OR covid19 OR lockdown"
+
+# Latitude, logitude and search radius(km) for Zambia and some surrounding regions
+loc = "-13.1884925,27.2397481,1000km"
+
+# Search dates
+date_since = "2020-09-25"
+date_until = "2020-09-27"
+
+# We also want to exclude retweets and replies as this may sway results
+my_search = search_words + " -filter:retweets" + " -filter:replies"
+# Use the tweepy Cursor method to access tweets from a specified region and between certain dates
+tweets = tweepy.Cursor(api.search,
+                       q=my_search,
+                       lang="en",
+                       tweet_mode='extended',
+                       geocode=loc,
+                       since=date_since,
+                       until=date_until).items(1000)
+                       
+%%time
+
+# ___Cell no. 25___
+
+# Once again, this should take ~2 minutes to run if you are collecting 1000 tweets
+tweet_info = [[tweet.id_str,tweet.created_at,tweet.user.location,tweet.full_text] for tweet in tweets]
+
+# Put our data into a dataframe 
+df_new = pd.DataFrame(data=tweet_info, columns=['tweet_id_str','date_time','location','tweet_text'])
+
+# Have a quick look at the dataframe
+df_new                       
